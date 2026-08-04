@@ -35,12 +35,16 @@ export function Nav() {
                 <NavLink to="/dashboard" className="nav-link">Seu impacto</NavLink>
                 <NavLink to="/depositar" className="nav-link">Registrar</NavLink>
                 <NavLink to="/ranking" className="nav-link">Comunidade</NavLink>
+                <NavLink to="/panorama" className="nav-link">Panorama</NavLink>
+                <NavLink to="/museu" className="nav-link">Museu</NavLink>
               </>
             )}
             <button className="nav-link nav-logout" onClick={logout}>Sair</button>
           </nav>
         ) : (
           <nav className="nav-links">
+            <NavLink to="/panorama" className="nav-link">Panorama</NavLink>
+            <NavLink to="/museu" className="nav-link">Museu</NavLink>
             <NavLink to="/login" className="nav-link">Entrar</NavLink>
             <Link to="/cadastro" className="nav-cta mono">Cadastre-se</Link>
           </nav>
