@@ -1,5 +1,6 @@
 import { Outlet } from "react-router-dom";
 import { Nav } from "./components/ui/Nav";
+import { AssistantWidget } from "./components/assistant/AssistantWidget";
 import { useLenis } from "./lib/useLenis";
 
 export default function Layout() {
@@ -12,6 +13,7 @@ export default function Layout() {
       <main>
         <Outlet />
       </main>
+      <AssistantWidget />
     </>
   );
 }

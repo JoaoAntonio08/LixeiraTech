@@ -9,6 +9,9 @@ import Dashboard from "./pages/Dashboard";
 import Ranking from "./pages/Ranking";
 import Deposit from "./pages/Deposit";
 import Admin from "./pages/Admin";
+import WorldPanorama from "./pages/WorldPanorama";
+import Museum from "./pages/Museum";
+import MuseumDetail from "./pages/MuseumDetail";
 
 export default function App() {
   return (
@@ -19,6 +22,9 @@ export default function App() {
             <Route path="/" element={<Landing />} />
             <Route path="/login" element={<Login />} />
             <Route path="/cadastro" element={<Signup />} />
+            <Route path="/panorama" element={<WorldPanorama />} />
+            <Route path="/museu" element={<Museum />} />
+            <Route path="/museu/:slug" element={<MuseumDetail />} />
             <Route
               path="/dashboard"
               element={
