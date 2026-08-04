@@ -12,6 +12,14 @@ import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import { readDB, writeDB } from './lib/jsonDb.js';
 
+// Carrega variáveis de server/.env (ex: OPENROUTER_API_KEY), se existir.
+// Usa a API nativa do Node (>=20.6) — não precisa da lib "dotenv".
+try {
+  process.loadEnvFile(new URL('./.env', import.meta.url));
+} catch {
+  // Sem .env ainda — ok, o assistente cai no modo de respostas locais (fallback).
+}
+
 const app = express();
 const PORT = 3001;
 
@@ -443,6 +451,88 @@ app.post('/api/admin/add-points', (req, res) => {
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
+});
+
+// ============================================================
+// ASSISTENTE INTELIGENTE (proxy para OpenRouter)
+// ============================================================
+// Modelos gratuitos configurados via OPENROUTER_MODELS (fallback em
+// cadeia — se um falhar/estiver indisponível, tenta o próximo).
+// A chave fica em server/.env (OPENROUTER_API_KEY) e nunca é exposta
+// ao front-end. Sem chave configurada, cai num fallback local por
+// palavras-chave para o assistente continuar funcional na demo.
+const OPENROUTER_MODELS = [
+  'nvidia/nemotron-3-ultra-550b-a55b:free',
+  'google/gemma-4-31b-it:free',
+  'openai/gpt-oss-20b:free',
+];
+
+const ASSISTANT_SYSTEM_PROMPT = `Você é o assistente virtual da Lixeira Tech, uma plataforma escolar de conscientização e coleta de lixo eletrônico.
+Responda em português, de forma curta, clara e prática, sobre: descarte de eletrônicos, pilhas, baterias, riscos ambientais e como usar o sistema Lixeira Tech.
+Quando fizer sentido, sugira a seção correspondente do site (ex: "veja mais no Museu Digital" ou "confira o Panorama Mundial").
+Se a pergunta não tiver relação com eletrônicos/meio ambiente/reciclagem, responda educadamente que seu foco é esse tema.
+Nunca invente números ou leis específicas com precisão que você não tem certeza — fale em termos gerais quando não tiver certeza.`;
+
+function localAssistantFallback(userMessage = '') {
+  const msg = userMessage.toLowerCase();
+  if (msg.includes('pilha') || msg.includes('bateria')) {
+    return 'Pilhas e baterias nunca devem ir no lixo comum: elas contêm metais pesados que contaminam solo e água. Leve a um ponto de coleta de eletrônicos ou registre o descarte aqui na Lixeira Tech. Dá uma olhada no Museu Digital para entender por que isso importa tanto.';
+  }
+  if (msg.includes('queimou') || msg.includes('quebrou') || msg.includes('estragou')) {
+    return 'Equipamento com defeito também é e-lixo — não descarte no lixo comum. Guarde-o e leve a um ponto de coleta eletrônica (ou registre aqui na Lixeira Tech, se sua escola aceitar itens danificados).';
+  }
+  if (msg.includes('carregador') || msg.includes('cabo') || msg.includes('fio')) {
+    return 'Sim! Carregadores e cabos são recicláveis — eles têm cobre e plástico que podem ser recuperados. Registre o descarte na aba "Registrar" para contar no seu impacto.';
+  }
+  if (msg.includes('reciclagem') || msg.includes('reciclar') || msg.includes('eletrônico')) {
+    return 'Praticamente todo equipamento eletrônico é reciclável em algum grau — o problema é que a maior parte vai parar no lixo comum. Dá uma olhada no Panorama Mundial pra ver como isso se compara entre países.';
+  }
+  return 'Posso te ajudar com dúvidas sobre descarte de eletrônicos, pilhas e baterias. Pode perguntar algo como "posso jogar pilha no lixo comum?" ou "como descarto meu carregador?".';
+}
+
+app.post('/api/assistant/chat', async (req, res) => {
+  const { messages } = req.body;
+  if (!Array.isArray(messages) || messages.length === 0) {
+    return res.status(400).json({ error: 'messages é obrigatório' });
+  }
+
+  const lastUserMessage = [...messages].reverse().find((m) => m.role === 'user')?.content || '';
+  const apiKey = process.env.OPENROUTER_API_KEY;
+
+  if (!apiKey) {
+    return res.json({ role: 'assistant', content: localAssistantFallback(lastUserMessage), source: 'local' });
+  }
+
+  const payloadMessages = [
+    { role: 'system', content: ASSISTANT_SYSTEM_PROMPT },
+    ...messages.slice(-10).map((m) => ({ role: m.role, content: m.content })),
+  ];
+
+  for (const model of OPENROUTER_MODELS) {
+    try {
+      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({ model, messages: payloadMessages }),
+      });
+
+      if (!response.ok) continue;
+
+      const data = await response.json();
+      const content = data?.choices?.[0]?.message?.content;
+      if (content) {
+        return res.json({ role: 'assistant', content, source: model });
+      }
+    } catch {
+      continue; // tenta o próximo modelo da lista
+    }
+  }
+
+  // Todos os modelos falharam (chave inválida, sem créditos, modelo fora do ar etc.)
+  return res.json({ role: 'assistant', content: localAssistantFallback(lastUserMessage), source: 'local-fallback' });
 });
 
 app.listen(PORT, () => {
