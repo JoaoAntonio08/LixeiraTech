@@ -50,6 +50,11 @@
 .dashboard-timeline { margin-top: var(--space-16); }
 .dashboard-timeline .eyebrow { display: block; margin-bottom: var(--space-4); }
 
+.dashboard-tree { margin-top: var(--space-16); }
+
+.dashboard-achievements { margin-top: var(--space-16); margin-bottom: var(--space-16); }
+.dashboard-achievements .eyebrow { display: block; margin-bottom: var(--space-4); }
+
 @media (max-width: 860px) {
   .dashboard-stats, .dashboard-grid { grid-template-columns: 1fr; }
 }

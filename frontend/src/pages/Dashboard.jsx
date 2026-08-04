@@ -7,6 +7,9 @@ import { ImpactStat, PointsBadge } from "../components/ui/ImpactStat";
 import { Card } from "../components/ui/Card";
 import { Timeline } from "../components/ui/Timeline";
 import { Button } from "../components/ui/Button";
+import { SustainabilityTree } from "../components/tree/SustainabilityTree";
+import { AchievementsGrid } from "../components/achievements/AchievementsGrid";
+import { evaluateAchievements } from "../data/achievements";
 import "./Dashboard.css";
 
 export default function Dashboard() {
@@ -38,6 +41,9 @@ export default function Dashboard() {
   const approved = deposits.filter((d) => d.status === "approved");
   const impact = calculateAggregateImpact(approved);
   const classImpactEstimate = (stats?.classPoints || 0) * AVG_CO2_PER_POINT_SAFE;
+  const totalPoints = stats?.totalPoints ?? user?.points ?? 0;
+  const streakDays = calculateStreakDays(approved);
+  const achievements = evaluateAchievements({ deposits: approved, impact, points: totalPoints });
 
   return (
     <div className="dashboard container">
@@ -95,6 +101,42 @@ export default function Dashboard() {
         <p className="eyebrow">Histórico de depósitos</p>
         <Timeline deposits={deposits} />
       </section>
+
+      <section className="dashboard-tree">
+        <SustainabilityTree ewasteKg={impact.ewasteKg} points={totalPoints} streakDays={streakDays} />
+      </section>
+
+      <section className="dashboard-achievements">
+        <p className="eyebrow">Conquistas ambientais</p>
+        <AchievementsGrid achievements={achievements} />
+      </section>
     </div>
   );
+}
+
+// Conta dias consecutivos (até hoje) com pelo menos um depósito aprovado.
+function calculateStreakDays(approvedDeposits) {
+  if (!approvedDeposits.length) return 0;
+
+  const days = new Set(
+    approvedDeposits
+      .map((d) => {
+        const date = new Date(d.created_at);
+        return Number.isNaN(date.getTime()) ? null : date.toISOString().slice(0, 10);
+      })
+      .filter(Boolean)
+  );
+
+  if (days.size === 0) return 0;
+
+  let streak = 0;
+  const cursor = new Date();
+  cursor.setHours(0, 0, 0, 0);
+
+  while (days.has(cursor.toISOString().slice(0, 10))) {
+    streak += 1;
+    cursor.setDate(cursor.getDate() - 1);
+  }
+
+  return streak;
 }
