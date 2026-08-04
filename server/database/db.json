@@ -1,170 +1,42 @@
 {
   "users": [
     {
-      "id": "c42b19ea-aeca-4d93-ad19-de939accbc5c",
-      "name": "Carlos Henrique do Amaral",
-      "matricula": "000000",
-      "email": "cw20carloshenrique@gmail.com",
-      "password_hash": "$2a$10$8NzLUMe4mG8ULGthHu0OSOw6I5yYp6szXCse4K6ecVZmLcni4uqWW",
-      "class_name": "3°C",
-      "points": 951,
-      "created_at": "2025-10-16 11:23:42"
-    },
-    {
-      "id": "8030d790-5cb9-4ff3-ac4a-77d13d945905",
-      "name": "João Antonio Biffi",
-      "matricula": "12345",
-      "email": "joao.biffi@escola.pr.gov.br",
-      "password_hash": "$2a$10$HmFNcGNxQyM7luZLpv3vkeRgtEPDPXmtY1i7WeRrw7x9xUxvdfIwC",
-      "class_name": "3ºC",
-      "points": 29000,
-      "created_at": "2025-10-16 11:26:45"
-    },
-    {
-      "id": "7274dca6-889c-4122-b4da-0cbd4ed95412",
-      "name": "Jalin Rabei",
-      "matricula": "0",
-      "email": "cw4554carloshenrique@gmail.com",
-      "password_hash": "$2a$10$UQcuYY/tVXYwmpCaM7LYDuDXBWx1QETQ6GA8I/vexWvv9bI8eE02m",
-      "class_name": "3°C",
-      "points": 170,
-      "created_at": "2025-10-16 11:28:23"
-    },
-    {
-      "id": "a9434ef1-43cf-4b9e-86e6-b64ade5b8cad",
-      "name": "Simas Turbo",
-      "matricula": "01",
-      "email": "hdkebdidnesg@gmail",
-      "password_hash": "$2a$10$vBuU9BmsotC00YMAE10tr.5yb2cmOHnVpLDsrj.P24De0v4oNqQhi",
-      "class_name": "3°C",
-      "points": -900,
-      "created_at": "2025-10-16 11:32:32"
-    },
-    {
-      "id": "6e6e70d7-a5ad-4b6c-a928-034038473019",
-      "name": "asda",
-      "matricula": "asd",
-      "email": "asdd@asd",
-      "password_hash": "$2a$10$mPPxJDjIbSiP0K6I8Z7.c.58ZXrm2lFLALWwD/uEMEdYmIwiL0YaS",
-      "class_name": "asd",
-      "points": 0,
-      "created_at": "2025-10-16 18:10:57"
-    },
-    {
-      "id": "969859ec-4ac2-4bb9-bcc6-0251f01c13fd",
-      "name": "Jalin Rabei 2x",
-      "matricula": "a",
-      "email": "a@a.a",
-      "password_hash": "$2a$10$TglzNovUg8hYhE0tabQ1jOdxPc1qsBUNVcC.rpPR4WYGnG8WrsaVK",
-      "class_name": "a",
-      "points": 0,
-      "created_at": "2025-10-16 18:11:45"
-    },
-    {
-      "id": "29d43c8f-6a5f-46ae-8de7-64421243bb6c",
-      "name": "Teste Aluno",
-      "matricula": "9999",
-      "email": "teste@teste.com",
-      "password_hash": "$2a$10$e34hatk31c4O4eyfSYDdeu.5LpjM6lNsNurrRD5D12q9Y4cr2D0.2",
-      "class_name": "1A",
-      "points": 0,
-      "created_at": "2026-07-30T00:50:25.673Z"
-    },
-    {
-      "id": "44e8205f-8cd1-4a5c-a6ac-c47702252457",
-      "name": "Teste",
-      "matricula": "123",
+      "id": "486b4281-2831-4685-90cc-95482f1b5465",
+      "name": "User1",
+      "matricula": "1",
       "email": "teste@gmail.com",
-      "password_hash": "$2a$10$tk9f4haQ3dSgr8dL21ZpjOhKNwqHQ8epMdNRc1cJCWi5FlmXzocs2",
-      "class_name": "3A",
-      "points": 0,
-      "created_at": "2026-07-30T01:01:54.894Z"
+      "password_hash": "$2a$10$hxeYyaDvGfQZpvBxQ76t.er3/Dd8DeJI8NQneZHA7gPeAbH6PD34K",
+      "class_name": "TADS",
+      "points": 35,
+      "created_at": "2026-08-04T22:47:52.452Z"
     }
   ],
   "deposits": [
     {
-      "id": "f1732663-bed4-47b7-a011-61350b3b8aa2",
-      "user_id": "7274dca6-889c-4122-b4da-0cbd4ed95412",
-      "item_type": "computador",
+      "id": "df4b1477-3ec8-4e7c-996a-cf9e9484f6cd",
+      "user_id": "486b4281-2831-4685-90cc-95482f1b5465",
+      "item_type": "notebook",
       "quantity": 1,
-      "weight_delta": 17,
+      "weight_delta": 3,
       "status": "approved",
-      "points": 170,
-      "created_at": "2025-10-16 11:29:07",
-      "updated_at": "2025-10-16 11:29:07",
-      "timestamp_client": "2025-10-16 11:29:07"
+      "points": 30,
+      "description": "",
+      "created_at": "2026-08-04T22:47:58.257Z",
+      "updated_at": "2026-08-04T22:48:33.211Z",
+      "timestamp_client": "2026-08-04T22:47:58.257Z"
     },
     {
-      "id": "fff83dd9-1ef3-4311-9ed3-239e714eb9e3",
-      "user_id": "c42b19ea-aeca-4d93-ad19-de939accbc5c",
-      "item_type": "celular",
+      "id": "9e058837-45f1-4adf-b9ed-c73e3ee90b10",
+      "user_id": "486b4281-2831-4685-90cc-95482f1b5465",
+      "item_type": "outros",
       "quantity": 1,
-      "weight_delta": 8,
+      "weight_delta": 0.5,
       "status": "approved",
-      "points": 1,
-      "created_at": "2025-10-16 11:30:01",
-      "updated_at": "2025-10-16 11:30:01",
-      "timestamp_client": "2025-10-16 11:30:01"
-    },
-    {
-      "id": "1ee45dbf-809a-44bf-920a-758b8417b643",
-      "user_id": "8030d790-5cb9-4ff3-ac4a-77d13d945905",
-      "item_type": "pq eu quero",
-      "quantity": 1,
-      "weight_delta": 2000,
-      "status": "approved",
-      "points": 20000,
-      "created_at": "2025-10-16 11:31:58",
-      "updated_at": "2025-10-16 11:31:58",
-      "timestamp_client": "2025-10-16 11:31:58"
-    },
-    {
-      "id": "324a1fb8-fa37-4e47-875f-0995dfac2a05",
-      "user_id": "a9434ef1-43cf-4b9e-86e6-b64ade5b8cad",
-      "item_type": "Pontos manuais",
-      "quantity": 1,
-      "weight_delta": -90,
-      "status": "approved",
-      "points": -900,
-      "created_at": "2025-10-16 11:33:33",
-      "updated_at": "2025-10-16 11:33:33",
-      "timestamp_client": "2025-10-16 11:33:33"
-    },
-    {
-      "id": "4ea24122-457e-47b8-b9ee-d0daf71adf0f",
-      "user_id": "c42b19ea-aeca-4d93-ad19-de939accbc5c",
-      "item_type": "Pontos manuais",
-      "quantity": 1,
-      "weight_delta": 75,
-      "status": "approved",
-      "points": 750,
-      "created_at": "2025-10-16 11:37:13",
-      "updated_at": "2025-10-16 11:37:13",
-      "timestamp_client": "2025-10-16 11:37:13"
-    },
-    {
-      "id": "a0aaf996-881c-4921-af5a-8ea216a9a60b",
-      "user_id": "c42b19ea-aeca-4d93-ad19-de939accbc5c",
-      "item_type": "computador",
-      "quantity": 1,
-      "weight_delta": 20,
-      "status": "approved",
-      "points": 200,
-      "created_at": "2025-10-16 11:37:22",
-      "updated_at": "2025-10-16 11:37:22",
-      "timestamp_client": "2025-10-16 11:37:22"
-    },
-    {
-      "id": "325297e1-eec2-4aa0-8994-dc1cc00907f5",
-      "user_id": "8030d790-5cb9-4ff3-ac4a-77d13d945905",
-      "item_type": "porque sm",
-      "quantity": 1,
-      "weight_delta": 900,
-      "status": "approved",
-      "points": 9000,
-      "created_at": "2025-10-16 13:39:45",
-      "updated_at": "2025-10-16 13:39:45",
-      "timestamp_client": "2025-10-16 13:39:45"
+      "points": 5,
+      "description": "",
+      "created_at": "2026-08-04T22:48:07.725Z",
+      "updated_at": "2026-08-04T22:48:32.321Z",
+      "timestamp_client": "2026-08-04T22:48:07.725Z"
     }
   ]
 }
