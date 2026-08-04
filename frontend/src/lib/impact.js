@@ -111,6 +111,55 @@ function round(n, decimals = 1) {
   return Math.round(n * f) / f;
 }
 
+/**
+ * ============================================================
+ * ÁRVORE DA SUSTENTABILIDADE
+ * ============================================================
+ * Estágio calculado a partir do total de kg de e-lixo desviado
+ * (impact.ewasteKg agregado do usuário). Cada estágio tem um
+ * limiar mínimo — quando o próximo limiar é atingido, a árvore
+ * "evolui". O XP ambiental usa a mesma base de pontos já existente
+ * no sistema (user.points), sem exigir campo novo no back-end.
+ */
+export const TREE_STAGES = [
+  { key: "semente", icon: "🌱", label: "Semente", minKg: 0 },
+  { key: "broto", icon: "🌿", label: "Broto", minKg: 2 },
+  { key: "jovem", icon: "🌳", label: "Árvore Jovem", minKg: 8 },
+  { key: "grande", icon: "🌲", label: "Árvore Grande", minKg: 20 },
+  { key: "floresta", icon: "🌳🌲🌱", label: "Floresta", minKg: 50 },
+];
+
+export function getTreeStage(ewasteKg = 0) {
+  let current = TREE_STAGES[0];
+  let currentIndex = 0;
+  for (let i = 0; i < TREE_STAGES.length; i++) {
+    if (ewasteKg >= TREE_STAGES[i].minKg) {
+      current = TREE_STAGES[i];
+      currentIndex = i;
+    }
+  }
+  const next = TREE_STAGES[currentIndex + 1] || null;
+  const progressToNext = next
+    ? Math.min(1, (ewasteKg - current.minKg) / (next.minKg - current.minKg))
+    : 1;
+
+  return {
+    stage: current,
+    stageIndex: currentIndex,
+    totalStages: TREE_STAGES.length,
+    next,
+    progressToNext,
+  };
+}
+
+// Nível ambiental: cada 100 pontos = 1 nível. Simples e reutiliza o
+// campo `points` que já existe no back-end (nenhuma mudança de schema).
+export function getEnvironmentalLevel(points = 0) {
+  const level = Math.floor(points / 100) + 1;
+  const xpIntoLevel = points % 100;
+  return { level, xpIntoLevel, xpForNextLevel: 100 };
+}
+
 // Metadados de categorias usados na UI (label + ícone line-art + cor de apoio)
 export const WASTE_CATEGORIES = [
   { key: "celular", label: "Celular", icon: "phone" },

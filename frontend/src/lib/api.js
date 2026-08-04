@@ -52,6 +52,14 @@ export const api = {
     byClass: (className) => request(`/api/leaderboard/class/${encodeURIComponent(className)}`),
   },
 
+  assistant: {
+    chat: (messages) =>
+      request("/api/assistant/chat", {
+        method: "POST",
+        body: JSON.stringify({ messages }),
+      }),
+  },
+
   admin: {
     depositsHistory: () => request("/api/admin/deposits/historico"),
     globalStats: () => request("/api/admin/global-stats"),
