@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
+import { PhoneExplodeStory } from "../components/landing/PhoneExplodeStory";
 import { StoryDeck } from "../components/landing/StoryDeck";
 import { ImpactDial } from "../components/landing/ImpactDial";
 import { Marquee } from "../components/landing/Marquee";
@@ -78,10 +79,6 @@ const fadeRight = {
   hidden: { opacity: 0, x: 56 },
   show: { opacity: 1, x: 0, transition: { duration: 0.75, ease: EASE } },
 };
-const wordPop = {
-  hidden: { opacity: 0, y: 26, rotate: -3 },
-  show: { opacity: 1, y: 0, rotate: 0, transition: { duration: 0.55, ease: EASE } },
-};
 const scaleSpin = {
   hidden: { opacity: 0, scale: 0.82, rotate: -6 },
   show: { opacity: 1, scale: 1, rotate: 0, transition: { duration: 0.85, ease: EASE } },
@@ -104,31 +101,6 @@ export default function Landing() {
 
   // ============ CONTEÚDO DE CADA "CAPÍTULO" DA HISTÓRIA ============
   const slides = [
-    {
-      id: "intro",
-      label: "Abertura",
-      content: (
-        <motion.div
-          className="story-content story-content-hero"
-          variants={staggerContainer(0.1, 0.05)}
-          initial="hidden"
-          whileInView="show"
-          viewport={viewportOnce}
-        >
-          <motion.p className="eyebrow" variants={fadeUp}>Lixeira Tech — Gamificação ambiental</motion.p>
-          <h1 className="display story-hero-title">
-            <motion.span className="hero-word" variants={wordPop} onMouseEnter={playHover}>Cada</motion.span>{" "}
-            <motion.span className="hero-word" variants={wordPop} onMouseEnter={playHover}>resíduo</motion.span>{" "}
-            <motion.span className="hero-word text-accent" variants={wordPop} onMouseEnter={playHover}>é um dado.</motion.span>
-            <br />
-            <motion.span className="hero-word" variants={wordPop} onMouseEnter={playHover}>Cada</motion.span>{" "}
-            <motion.span className="hero-word" variants={wordPop} onMouseEnter={playHover}>dado,</motion.span>{" "}
-            <motion.span className="hero-word text-accent" variants={wordPop} onMouseEnter={playHover}>uma prova.</motion.span>
-          </h1>
-          <motion.p className="story-hero-sub text-dim" variants={fadeUp}>Role para começar a história.</motion.p>
-        </motion.div>
-      ),
-    },
     {
       id: "problema",
       label: "01 — O problema",
@@ -322,6 +294,17 @@ export default function Landing() {
   return (
     <div className="landing">
       <SoundToggle enabled={enabled} onToggle={() => { toggle(); playClick(); }} onHover={playHover} />
+
+      <ErrorBoundary
+        fallback={
+          <section className="phone-story-fallback container">
+            <p className="eyebrow">Isso é o que sobra</p>
+            <h1 className="display">Cada resíduo é um dado. Cada dado, uma prova.</h1>
+          </section>
+        }
+      >
+        <PhoneExplodeStory />
+      </ErrorBoundary>
 
       <ErrorBoundary
         fallback={

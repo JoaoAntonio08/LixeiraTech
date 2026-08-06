@@ -24,20 +24,26 @@ export function useLenis() {
       duration: 1.1,
       easing: (t) => 1 - Math.pow(1 - t, 3),
       smoothWheel: true,
+      autoRaf: false, // o GSAP ticker abaixo é quem avança o Lenis — precisa ser o único RAF
     });
 
     lenis.on("scroll", ScrollTrigger.update);
     setLenisInstance(lenis);
 
-    gsap.ticker.add((time) => {
+    const update = (time) => {
       lenis.raf(time * 1000);
-    });
+    };
+    gsap.ticker.add(update);
     gsap.ticker.lagSmoothing(0);
 
+    // As posições dos ScrollTriggers (ex.: PhoneExplodeStory) podem ter sido
+    // calculadas antes do Lenis assumir o controle do scroll — recalcula agora.
+    ScrollTrigger.refresh();
+
     return () => {
+      gsap.ticker.remove(update);
       lenis.destroy();
       setLenisInstance(null);
-      gsap.ticker.remove(lenis.raf);
     };
   }, []);
 }

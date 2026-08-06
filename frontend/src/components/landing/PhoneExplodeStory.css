@@ -1,0 +1,133 @@
+.phone-story {
+  position: relative;
+  height: 420vh; /* trilho de scroll — cada "ato" ganha espaço para respirar */
+}
+
+.phone-story-sticky {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  width: 100%;
+  overflow: hidden;
+  z-index: var(--z-canvas);
+}
+
+.phone-story-canvas-wrap {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
+/* ---------- lado esquerdo: índice de capítulos (sempre visível) ---------- */
+.phone-story-chapters {
+  position: absolute;
+  left: var(--space-8);
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-width: 200px;
+}
+
+.phone-story-chapter {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  opacity: 0.35;
+  transition: opacity var(--dur-base) var(--ease-out-expo);
+}
+.phone-story-chapter.is-active { opacity: 1; }
+
+.phone-story-chapter-index {
+  font-size: var(--fs-body-sm);
+  color: var(--color-accent);
+  flex-shrink: 0;
+}
+
+.phone-story-chapter-label {
+  font-size: var(--fs-body-sm);
+  line-height: var(--lh-snug);
+  color: var(--color-text-dim);
+}
+.phone-story-chapter.is-active .phone-story-chapter-label { color: var(--color-text); }
+
+/* ---------- lado direito: detalhe do capítulo atual ---------- */
+.phone-story-detail {
+  position: absolute;
+  right: var(--space-8);
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+  max-width: 380px;
+  text-align: right;
+}
+
+.phone-story-detail-eyebrow { margin-bottom: var(--space-2); }
+
+.phone-story-detail-text {
+  font-size: clamp(1.35rem, 2.4vw, var(--fs-display-md));
+  line-height: var(--lh-tight);
+}
+
+.phone-story-hint {
+  position: absolute;
+  bottom: var(--space-6);
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: var(--fs-body-sm);
+  z-index: 2;
+}
+
+/* ---------- fallback (sem WebGL / low power / reduced motion) ---------- */
+.phone-story-fallback {
+  padding-top: 160px;
+  padding-bottom: var(--space-24);
+}
+.phone-story-fallback-title {
+  font-size: var(--fs-display-lg);
+  max-width: 760px;
+  margin-top: var(--space-3);
+  line-height: var(--lh-tight);
+}
+.phone-story-fallback-icons {
+  display: flex;
+  gap: var(--space-8);
+  margin-top: var(--space-12);
+  color: var(--color-accent);
+}
+
+@media (max-width: 900px) {
+  .phone-story { height: 340vh; }
+
+  /* Em telas estreitas os dois lados não cabem — o índice vira uma
+     tira horizontal no topo e o detalhe fica ancorado embaixo, mas
+     ambos continuam sempre visíveis (nada de texto sumindo). */
+  .phone-story-chapters {
+    left: var(--space-4);
+    right: var(--space-4);
+    top: var(--space-6);
+    transform: none;
+    flex-direction: row;
+    justify-content: space-between;
+    max-width: none;
+    gap: var(--space-2);
+  }
+  .phone-story-chapter { flex-direction: column; gap: var(--space-1); text-align: center; }
+  .phone-story-chapter-label { display: none; }
+  .phone-story-chapter.is-active .phone-story-chapter-label {
+    display: block;
+    font-size: 0.65rem;
+  }
+
+  .phone-story-detail {
+    left: var(--space-5);
+    right: var(--space-5);
+    top: auto;
+    bottom: var(--space-14);
+    transform: none;
+    max-width: none;
+    text-align: left;
+  }
+}

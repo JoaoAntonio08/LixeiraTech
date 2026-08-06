@@ -7,6 +7,16 @@ html, body {
   color: var(--color-text);
   font-family: var(--font-body);
   scroll-behavior: auto; /* Lenis controla o smooth scroll manualmente */
+}
+
+/* overflow-x: hidden só no <html> — se também for aplicado ao <body>,
+   o overflow-y do body deixa de ser "visible" e passa a "auto" (regra do
+   CSS: um eixo não pode ficar "visible" enquanto o outro não é), o que
+   transforma o body no seu próprio scroll container, distinto do viewport
+   real. Isso quebra todo position: sticky da página, porque os elementos
+   sticky passam a "grudar" em relação ao scroll (inexistente) do body,
+   em vez do scroll real que acontece no html/viewport. */
+html {
   overflow-x: hidden;
 }
 
