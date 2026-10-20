@@ -9,7 +9,7 @@
   padding: 0.75em 1.1em;
   border-radius: var(--radius-full);
   border: 1px solid var(--color-border-strong);
-  background: rgba(10, 12, 10, 0.72);
+  background: var(--color-overlay);
   backdrop-filter: blur(14px);
   color: var(--color-text-dim);
   font-size: var(--fs-body-sm);

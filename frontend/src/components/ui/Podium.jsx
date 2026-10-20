@@ -4,7 +4,7 @@ import "./Podium.css";
 /**
  * Pódio visual dos 3 primeiros colocados, baseado em impacto real
  * (kg de CO2 evitado), com pontos como legenda secundária.
- * entries: [{ name, class, co2Kg, points }] já ordenado por posição.
+ * entries: [{ name, co2Kg, points }] já ordenado por posição.
  */
 export function Podium({ entries = [] }) {
   const order = [1, 0, 2]; // 2º, 1º, 3º — arranjo visual clássico de pódio
@@ -26,7 +26,6 @@ export function Podium({ entries = [] }) {
           >
             <div className="podium-rank mono">#{idx + 1}</div>
             <div className="podium-name">{entry.name}</div>
-            <div className="podium-class text-dim mono">{entry.class}</div>
             <div className="podium-co2 mono text-accent">{entry.co2Kg?.toFixed(1)} kg CO2</div>
             <div
               className="podium-bar"
