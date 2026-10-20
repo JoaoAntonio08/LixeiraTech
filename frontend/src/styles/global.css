@@ -7,16 +7,6 @@ html, body {
   color: var(--color-text);
   font-family: var(--font-body);
   scroll-behavior: auto; /* Lenis controla o smooth scroll manualmente */
-}
-
-/* overflow-x: hidden só no <html> — se também for aplicado ao <body>,
-   o overflow-y do body deixa de ser "visible" e passa a "auto" (regra do
-   CSS: um eixo não pode ficar "visible" enquanto o outro não é), o que
-   transforma o body no seu próprio scroll container, distinto do viewport
-   real. Isso quebra todo position: sticky da página, porque os elementos
-   sticky passam a "grudar" em relação ao scroll (inexistente) do body,
-   em vez do scroll real que acontece no html/viewport. */
-html {
   overflow-x: hidden;
 }
 
@@ -72,10 +62,12 @@ button { font-family: inherit; }
   position: fixed;
   inset: 0;
   z-index: 1;
-  opacity: 0.035;
+  opacity: 0.018;
   mix-blend-mode: overlay;
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
 }
+
+:root[data-theme="dark"] .noise-overlay { opacity: 0.035; }
 
 .visually-hidden {
   position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
@@ -89,4 +81,8 @@ button { font-family: inherit; }
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+@media (max-width: 640px) {
+  .container { padding-inline: var(--space-4); }
 }

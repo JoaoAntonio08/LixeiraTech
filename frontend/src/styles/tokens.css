@@ -14,28 +14,30 @@
 
 :root {
   /* ---------- Cor: base (dark, quase-preto, nunca #000 puro) ---------- */
-  --color-bg: #0a0c0a;
-  --color-bg-elevated: #12140f;
-  --color-bg-elevated-2: #181b15;
-  --color-surface: #14160f;
-  --color-border: rgba(215, 255, 100, 0.12);
-  --color-border-strong: rgba(215, 255, 100, 0.28);
+  --color-bg: #f7f8f2;
+  --color-bg-elevated: #ffffff;
+  --color-bg-elevated-2: #edf0e6;
+  --color-surface: #f0f3eb;
+  --color-border: rgba(34, 56, 26, 0.15);
+  --color-border-strong: rgba(34, 56, 26, 0.3);
 
   /* ---------- Cor: accent (verde elétrico/ácido) ---------- */
-  --color-accent: #d4ff3d;       /* verde-ácido — accent primário */
-  --color-accent-strong: #eaff70;
-  --color-accent-dim: #8ea832;
-  --color-accent-glow: rgba(212, 255, 61, 0.35);
+  --color-accent: #587900;
+  --color-accent-strong: #3e5900;
+  --color-accent-dim: #769936;
+  --color-accent-glow: rgba(88, 121, 0, 0.22);
 
   /* ---------- Cor: apoio (para respirar sem virar "site de ONG") ---------- */
-  --color-support-cyan: #4dd7d2;   /* dado técnico / CO2 */
-  --color-support-amber: #ffb454;  /* alerta / pendente */
-  --color-support-coral: #ff5d5d;  /* rejeição / erro */
+  --color-support-cyan: #087f7b;
+  --color-support-amber: #a55e00;
+  --color-support-coral: #be3838;
 
   /* ---------- Texto ---------- */
-  --color-text: #eef1e6;
-  --color-text-dim: #9aa294;
-  --color-text-faint: #5c6357;
+  --color-text: #1a2417;
+  --color-text-dim: #52604d;
+  --color-text-faint: #778272;
+  --color-overlay: rgba(247, 248, 242, 0.82);
+  --color-shadow: rgba(24, 36, 20, 0.16);
 
   /* ---------- Tipografia ---------- */
   --font-display: "Bricolage Grotesque", "General Sans", "Space Grotesk", ui-sans-serif, sans-serif;
@@ -96,4 +98,25 @@
   --z-modal: 300;
 
   --container-max: 1280px;
+}
+
+:root[data-theme="dark"] {
+  --color-bg: #0a0c0a;
+  --color-bg-elevated: #12140f;
+  --color-bg-elevated-2: #181b15;
+  --color-surface: #14160f;
+  --color-border: rgba(215, 255, 100, 0.12);
+  --color-border-strong: rgba(215, 255, 100, 0.28);
+  --color-accent: #d4ff3d;
+  --color-accent-strong: #eaff70;
+  --color-accent-dim: #8ea832;
+  --color-accent-glow: rgba(212, 255, 61, 0.35);
+  --color-support-cyan: #4dd7d2;
+  --color-support-amber: #ffb454;
+  --color-support-coral: #ff5d5d;
+  --color-text: #eef1e6;
+  --color-text-dim: #9aa294;
+  --color-text-faint: #5c6357;
+  --color-overlay: rgba(10, 12, 10, 0.72);
+  --color-shadow: rgba(0, 0, 0, 0.5);
 }
