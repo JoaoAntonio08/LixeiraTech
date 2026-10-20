@@ -1,27 +1,30 @@
 // server/index.js
 //
-// Backend da Lixeira Tech — versão para desenvolvimento/testes.
-// Em vez de MySQL, os dados ficam em server/database/db.json
-// (ver server/lib/jsonDb.js). Todos os endpoints e formatos de
-// resposta são os mesmos que o frontend (src/lib/api.js) já espera —
-// nenhum contrato mudou, só a forma como os dados são persistidos.
+// Backend da Lixeira Tech. Todos os dados persistem em PostgreSQL.
+// Os endpoints e formatos de resposta permanecem compatíveis com o frontend.
 
 import express from 'express';
 import cors from 'cors';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
-import { readDB, writeDB } from './lib/jsonDb.js';
-
-// Carrega variáveis de server/.env (ex: OPENROUTER_API_KEY), se existir.
-// Usa a API nativa do Node (>=20.6) — não precisa da lib "dotenv".
-try {
-  process.loadEnvFile(new URL('./.env', import.meta.url));
-} catch {
-  // Sem .env ainda — ok, o assistente cai no modo de respostas locais (fallback).
-}
+import { initDatabase, readDB, updateBinById, writeDB } from './db.js';
 
 const app = express();
 const PORT = 3001;
+// A certificação é liberada pela conquista ambiental "Protetor do Planeta".
+// A mesma regra é usada no card de conquistas do Dashboard: 50 kg aprovados.
+const AMBASSADOR_MIN_EWASTE_KG = 50;
+const REFERRAL_REWARD_POINTS = 50;
+const CO2_FACTOR_BY_TYPE = {
+  celular: 12.5,
+  notebook: 9,
+  placa_mae: 14,
+  bateria: 6.5,
+  monitor: 4.5,
+  cabo: 2.8,
+  pilha: 3.5,
+  outros: 3,
+};
 
 app.use(cors());
 app.use(express.json());
@@ -44,52 +47,91 @@ function generateAdminPassword(date = new Date()) {
   return senha;
 }
 
+function calculateUserCO2(deposits) {
+  return deposits.reduce((total, deposit) => {
+    const type = String(deposit.item_type || '')
+      .trim()
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, '_');
+    const factor = CO2_FACTOR_BY_TYPE[type] || CO2_FACTOR_BY_TYPE.outros;
+    return total + (Number(deposit.weight_delta) || 0) * factor;
+  }, 0);
+}
+
 function isSameDay(isoA, isoB = new Date().toISOString()) {
   return String(isoA).slice(0, 10) === String(isoB).slice(0, 10);
 }
 
 function publicUser(user) {
-  const { password_hash, ...rest } = user;
-  return rest;
+  const { password_hash, matricula, class_name, kiosk_code, referred_by_user_id, ...rest } = user;
+  return { ...rest, kioskCode: kiosk_code };
+}
+
+function ambassadorEligibility(user, deposits) {
+  const approved = deposits.filter((deposit) => deposit.user_id === user.id && deposit.status === 'approved');
+  const approvedDeposits = approved.length;
+  const ewasteKg = approved.reduce((total, deposit) => total + Math.max(0, Number(deposit.weight_delta) || 0), 0);
+  return {
+    approvedDeposits,
+    ewasteKg,
+    minEwasteKg: AMBASSADOR_MIN_EWASTE_KG,
+    levelName: ewasteKg >= AMBASSADOR_MIN_EWASTE_KG ? 'Protetor do Planeta' : 'Em evolução',
+    eligible: ewasteKg >= AMBASSADOR_MIN_EWASTE_KG,
+  };
 }
 
 // ---------- Auth ----------
 
-app.post('/api/auth/signup', (req, res) => {
+app.post('/api/auth/signup', async (req, res) => {
   try {
-    const { name, matricula, email, password, class_name } = req.body;
-    const db = readDB();
+    const { name, email, phone, password, referralCode } = req.body;
+    const db = await readDB();
 
-    const existing = db.users.find((u) => u.email === email || u.matricula === matricula);
+    if (![name, email, phone, password].every((value) => String(value || '').trim())) {
+      return res.status(400).json({ error: 'Preencha nome, telefone, e-mail e senha' });
+    }
+
+    const normalizedName = String(name || '').trim().toLocaleLowerCase('pt-BR');
+    const existing = db.users.find((u) =>
+      u.email === email ||
+      String(u.name || '').trim().toLocaleLowerCase('pt-BR') === normalizedName
+    );
     if (existing) {
-      return res.status(400).json({ error: 'Usuário já existe' });
+      return res.status(400).json({ error: 'Já existe uma conta com este e-mail ou nome' });
     }
 
     const password_hash = bcrypt.hashSync(password, 10);
     const id = uuidv4();
 
+    const referrer = referralCode ? db.users.find((candidate) => candidate.referral_code === String(referralCode).trim().toUpperCase() && candidate.ambassador_status === 'approved') : null;
     const user = {
       id,
       name,
-      matricula,
+      matricula: '',
       email,
+      phone: String(phone).trim(),
       password_hash,
-      class_name,
+      class_name: name,
       points: 0,
+      kiosk_code: uuidv4().replace(/-/g, '').slice(0, 8).toUpperCase(),
+      referred_by_user_id: referrer?.id || null,
+      referral_status: referrer ? 'pending' : 'none',
+      referral_reward_points: 0,
       created_at: new Date().toISOString(),
     };
 
     db.users.push(user);
-    writeDB(db);
+    await writeDB(db);
 
-    const { id: _id, name: _name, matricula: _mat, email: _email, class_name: _cls, points } = user;
-    res.json({ user: { id: _id, name: _name, matricula: _mat, email: _email, class_name: _cls, points } });
+    res.json({ user: publicUser(user) });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-app.post('/api/auth/login', (req, res) => {
+app.post('/api/auth/login', async (req, res) => {
   try {
     const { email, password } = req.body;
 
@@ -100,9 +142,7 @@ app.post('/api/auth/login', (req, res) => {
         const adminUser = {
           id: 'admin',
           name: 'Administrador',
-          matricula: 'ADMIN',
           email: 'admin',
-          class_name: 'Administração',
           points: 0,
           is_admin: true,
         };
@@ -111,7 +151,7 @@ app.post('/api/auth/login', (req, res) => {
       return res.status(401).json({ error: 'Credenciais inválidas' });
     }
 
-    const db = readDB();
+    const db = await readDB();
     const user = db.users.find((u) => u.email === email);
     if (!user) return res.status(401).json({ error: 'Credenciais inválidas' });
 
@@ -124,12 +164,101 @@ app.post('/api/auth/login', (req, res) => {
   }
 });
 
+// Redefinição local de senha. Em produção, este fluxo deve exigir um token
+// enviado ao e-mail do titular antes de permitir a troca.
+app.post('/api/auth/reset-password', async (req, res) => {
+  try {
+    const email = String(req.body?.email || '').trim();
+    const password = String(req.body?.password || '');
+
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Informe o e-mail e a nova senha' });
+    }
+    if (password.length < 6) {
+      return res.status(400).json({ error: 'A senha deve ter pelo menos 6 caracteres' });
+    }
+    if (email.toLowerCase() === 'admin') {
+      return res.status(400).json({ error: 'A senha do administrador não pode ser redefinida por esta tela' });
+    }
+
+    const db = await readDB();
+    const normalizedEmail = email.toLocaleLowerCase('pt-BR');
+    const user = db.users.find(
+      (item) => String(item.email || '').trim().toLocaleLowerCase('pt-BR') === normalizedEmail
+    );
+    if (!user) {
+      return res.status(404).json({ error: 'Nenhuma conta foi encontrada com este e-mail' });
+    }
+
+    user.password_hash = bcrypt.hashSync(password, 10);
+    await writeDB(db);
+
+    res.json({ message: 'Senha redefinida com sucesso' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ---------- Programa de embaixadores ----------
+
+app.get('/api/ambassador/eligibility/:userId', async (req, res) => {
+  try {
+    const db = await readDB();
+    const user = db.users.find((item) => item.id === req.params.userId);
+    if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
+    res.json({ ...ambassadorEligibility(user, db.deposits), status: user.ambassador_status || 'none', certificateCode: user.ambassador_certificate_code || null });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/referrals/:userId', async (req, res) => {
+  try {
+    const db = await readDB();
+    const ambassador = db.users.find((user) => user.id === req.params.userId && user.ambassador_status === 'approved');
+    if (!ambassador) return res.status(403).json({ error: 'Apenas embaixadores certificados possuem indicações' });
+    const referrals = db.users.filter((user) => user.referred_by_user_id === ambassador.id).map((user) => ({ id: user.id, name: user.name, status: user.referral_status, rewardPoints: user.referral_reward_points, registeredAt: user.created_at, qualifiedAt: user.referral_qualified_at || null }));
+    res.json({ code: ambassador.referral_code, referrals, total: referrals.length, qualified: referrals.filter((referral) => referral.status === 'qualified').length, rewardPoints: referrals.reduce((total, referral) => total + Number(referral.rewardPoints || 0), 0) });
+  } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+app.post('/api/ambassador/request', async (req, res) => {
+  try {
+    const { userId } = req.body;
+    const db = await readDB();
+    const user = db.users.find((item) => item.id === userId);
+    if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
+    const eligibility = ambassadorEligibility(user, db.deposits);
+    if (!eligibility.eligible) return res.status(400).json({ error: 'Você ainda não atingiu os requisitos para se tornar embaixador' });
+    if (user.ambassador_status === 'approved') return res.status(400).json({ error: 'Você já é um Embaixador Lixeira Tech' });
+    if (user.ambassador_status === 'pending') return res.status(400).json({ error: 'Sua solicitação já está em análise' });
+
+    user.ambassador_status = 'pending';
+    user.ambassador_requested_at = new Date().toISOString();
+    await writeDB(db);
+    res.json({ success: true, message: 'Solicitação enviada para análise' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/certificates/:code', async (req, res) => {
+  try {
+    const db = await readDB();
+    const user = db.users.find((item) => item.ambassador_status === 'approved' && item.ambassador_certificate_code === String(req.params.code || '').toUpperCase());
+    if (!user) return res.status(404).json({ error: 'Certificado não encontrado ou não está válido' });
+    res.json({ name: user.name, code: user.ambassador_certificate_code, approvedAt: user.ambassador_approved_at, title: 'Embaixador Lixeira Tech' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // ---------- User stats ----------
 
-app.get('/api/user/stats/:userId', (req, res) => {
+app.get('/api/user/stats/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
-    const db = readDB();
+    const db = await readDB();
 
     const user = db.users.find((u) => u.id === userId);
     if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
@@ -138,19 +267,11 @@ app.get('/api/user/stats/:userId', (req, res) => {
     const totalDeposits = userDeposits.length;
     const todayDeposits = userDeposits.filter((d) => isSameDay(d.created_at)).length;
 
-    const classPosition =
-      db.users.filter((u) => u.class_name === user.class_name && u.points > user.points).length + 1;
-
-    const classPoints = db.users
-      .filter((u) => u.class_name === user.class_name)
-      .reduce((sum, u) => sum + (u.points || 0), 0);
-
     res.json({
+      userName: user.name,
       totalPoints: user.points,
       totalDeposits,
       todayDeposits,
-      classPosition,
-      classPoints,
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -159,10 +280,10 @@ app.get('/api/user/stats/:userId', (req, res) => {
 
 // ---------- Deposits ----------
 
-app.get('/api/deposits/:userId', (req, res) => {
+app.get('/api/deposits/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
-    const db = readDB();
+    const db = await readDB();
 
     const rows = db.deposits
       .filter((d) => d.user_id === userId)
@@ -175,6 +296,7 @@ app.get('/api/deposits/:userId', (req, res) => {
         points: d.status === 'approved' ? d.points : 0,
         date: d.created_at,
         status: d.status,
+        binName: db.bins.find((bin) => bin.id === d.bin_id)?.name || null,
       }));
 
     res.json(rows);
@@ -183,15 +305,22 @@ app.get('/api/deposits/:userId', (req, res) => {
   }
 });
 
-app.post('/api/deposits', (req, res) => {
+app.post('/api/deposits', async (req, res) => {
   try {
-    const { userId, wasteType, quantity, weight, description } = req.body;
-    const db = readDB();
+    const { userId, binId, wasteType, quantity, weight, description } = req.body;
+    const db = await readDB();
+    const user = db.users.find((item) => item.id === userId);
+    if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
+
+    const bin = binId ? db.bins.find((item) => item.id === binId) : null;
+    if (binId && !bin) return res.status(404).json({ error: 'Lixeira não encontrada' });
+    if (bin && bin.status !== 'online') return res.status(400).json({ error: 'Esta lixeira está indisponível no momento' });
 
     const now = new Date().toISOString();
     const deposit = {
       id: uuidv4(),
       user_id: userId,
+      bin_id: bin?.id || null,
       item_type: wasteType,
       quantity: Number(quantity),
       weight_delta: Number(weight),
@@ -204,7 +333,11 @@ app.post('/api/deposits', (req, res) => {
     };
 
     db.deposits.push(deposit);
-    writeDB(db);
+    if (bin) {
+      bin.capacity_pct = Math.min(100, bin.capacity_pct + Math.max(1, Math.ceil(Number(weight) * 2)));
+      bin.updated_at = now;
+    }
+    await writeDB(db);
 
     res.json({ success: true, message: 'Depósito registrado e aguardando aprovação' });
   } catch (error) {
@@ -214,12 +347,11 @@ app.post('/api/deposits', (req, res) => {
 
 // ---------- Admin: deposits history ----------
 
-app.get('/api/admin/deposits/historico', (req, res) => {
+app.get('/api/admin/deposits/historico', async (req, res) => {
   try {
-    const db = readDB();
+    const db = await readDB();
 
     const rows = db.deposits
-      .filter((d) => d.status === 'approved' || d.status === 'rejected')
       .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
       .map((d) => {
         const user = db.users.find((u) => u.id === d.user_id);
@@ -227,17 +359,44 @@ app.get('/api/admin/deposits/historico', (req, res) => {
           id: d.id,
           user_id: d.user_id,
           userName: user?.name ?? '—',
-          class_name: user?.class_name ?? '—',
           wasteType: d.item_type,
           quantity: d.quantity,
           weight: d.weight_delta,
+          description: d.description || '',
           points: d.status === 'approved' ? d.points : 0,
           date: d.created_at,
           status: d.status,
+          binName: db.bins.find((bin) => bin.id === d.bin_id)?.name || 'Depósito manual',
         };
       });
 
     res.json(rows);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ---------- Quiosque e lixeiras físicas simuladas ----------
+
+app.get('/api/kiosk/bins', async (_req, res) => {
+  try {
+    const db = await readDB();
+    res.json(db.bins
+      .filter((bin) => bin.status !== 'offline')
+      .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
+      .map((bin) => ({ id: bin.id, name: bin.name, location: bin.location, latitude: bin.latitude, longitude: bin.longitude, capacity: bin.capacity_pct, status: bin.status })));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/kiosk/users/:code', async (req, res) => {
+  try {
+    const code = String(req.params.code || '').trim().toUpperCase();
+    const db = await readDB();
+    const user = db.users.find((item) => item.kiosk_code === code);
+    if (!user) return res.status(404).json({ error: 'Código QR não encontrado' });
+    res.json({ id: user.id, name: user.name, points: user.points, kioskCode: user.kiosk_code });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -245,15 +404,20 @@ app.get('/api/admin/deposits/historico', (req, res) => {
 
 // ---------- Leaderboard ----------
 
-app.get('/api/leaderboard/global', (_req, res) => {
+app.get('/api/leaderboard/global', async (_req, res) => {
   try {
-    const db = readDB();
+    const db = await readDB();
 
     const rows = db.users
-      .filter((u) => u.points > 0)
-      .sort((a, b) => b.points - a.points)
+      .map((user) => ({
+        name: user.name,
+        points: user.points || 0,
+        co2Kg: calculateUserCO2(db.deposits.filter((deposit) => deposit.user_id === user.id && deposit.status === 'approved')),
+      }))
+      .filter((user) => user.points > 0)
+      .sort((a, b) => b.points - a.points || b.co2Kg - a.co2Kg)
       .slice(0, 10)
-      .map((u, i) => ({ rank: i + 1, name: u.name, points: u.points, class: u.class_name }));
+      .map((user, index) => ({ ...user, rank: index + 1 }));
 
     res.json(rows);
   } catch (error) {
@@ -261,36 +425,16 @@ app.get('/api/leaderboard/global', (_req, res) => {
   }
 });
 
-app.get('/api/leaderboard/class/:className', (req, res) => {
-  try {
-    const { className } = req.params;
-    const db = readDB();
-
-    const rows = db.users
-      .filter((u) => u.class_name === className && u.points > 0)
-      .sort((a, b) => b.points - a.points)
-      .slice(0, 10)
-      .map((u, i) => ({ rank: i + 1, name: u.name, points: u.points }));
-
-    res.json(rows);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.get('/api/user/ranking/:userId', (req, res) => {
+app.get('/api/user/ranking/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
-    const db = readDB();
+    const db = await readDB();
 
     const user = db.users.find((u) => u.id === userId);
     if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
 
     const global = db.users.filter((u) => u.points > user.points).length + 1;
-    const classRank =
-      db.users.filter((u) => u.class_name === user.class_name && u.points > user.points).length + 1;
-
-    res.json({ global, class: classRank, points: user.points });
+    res.json({ global, points: user.points });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -298,35 +442,148 @@ app.get('/api/user/ranking/:userId', (req, res) => {
 
 // ---------- Admin ----------
 
-app.get('/api/admin/global-stats', (_req, res) => {
+app.get('/api/admin/ambassadors', async (_req, res) => {
   try {
-    const db = readDB();
-
-    const totalStudents = db.users.length;
-    const totalClasses = new Set(db.users.map((u) => u.class_name)).size;
-    const approved = db.deposits.filter((d) => d.status === 'approved');
-    const totalDeposits = approved.length;
-    const todayDeposits = approved.filter((d) => isSameDay(d.created_at)).length;
-
-    res.json({ totalStudents, totalClasses, totalDeposits, todayDeposits });
+    const db = await readDB();
+    const rows = db.users
+      .filter((user) => ['pending', 'approved', 'rejected'].includes(user.ambassador_status))
+      .map((user) => ({
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        status: user.ambassador_status,
+        requestedAt: user.ambassador_requested_at,
+        approvedAt: user.ambassador_approved_at,
+        certificateCode: user.ambassador_certificate_code || null,
+        ...ambassadorEligibility(user, db.deposits),
+      }))
+      .sort((a, b) => new Date(b.requestedAt || 0) - new Date(a.requestedAt || 0));
+    res.json(rows);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-app.get('/api/admin/class-rankings', (req, res) => {
+app.post('/api/admin/ambassadors/approve', async (req, res) => {
   try {
-    const db = readDB();
-    const classes = [...new Set(db.users.map((u) => u.class_name))];
+    const { userId } = req.body;
+    const db = await readDB();
+    const user = db.users.find((item) => item.id === userId);
+    if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
+    if (user.ambassador_status !== 'pending') return res.status(400).json({ error: 'Esta solicitação não está pendente' });
 
-    const result = classes.map((class_name) => {
-      const ranking = db.users
-        .filter((u) => u.class_name === class_name && u.points > 0)
-        .sort((a, b) => b.points - a.points)
-        .slice(0, 10)
-        .map((u, i) => ({ rank: i + 1, name: u.name, points: u.points }));
-      return { class_name, ranking };
-    });
+    user.ambassador_status = 'approved';
+    user.ambassador_approved_at = new Date().toISOString();
+    user.ambassador_certificate_code = `LTX-${new Date().getFullYear()}-${uuidv4().replace(/-/g, '').slice(0, 8).toUpperCase()}`;
+    user.referral_code = user.referral_code || `LT-${uuidv4().replace(/-/g, '').slice(0, 8).toUpperCase()}`;
+    await writeDB(db);
+    res.json({ success: true, certificateCode: user.ambassador_certificate_code });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/admin/ambassadors/reject', async (req, res) => {
+  try {
+    const { userId } = req.body;
+    const db = await readDB();
+    const user = db.users.find((item) => item.id === userId);
+    if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
+    if (user.ambassador_status !== 'pending') return res.status(400).json({ error: 'Esta solicitação não está pendente' });
+
+    user.ambassador_status = 'rejected';
+    user.ambassador_approved_at = null;
+    user.ambassador_certificate_code = null;
+    await writeDB(db);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/admin/bins', async (_req, res) => {
+  try {
+    const db = await readDB();
+    // A posição visual de cada cartão e ponto no mapa deve permanecer estável.
+    // Ordenar por criação (e ID como desempate) evita trocar unidades de lugar
+    // depois que uma coleta altera a capacidade de apenas uma delas.
+    res.json([...db.bins].sort((a, b) =>
+      new Date(a.created_at) - new Date(b.created_at) || String(a.id).localeCompare(String(b.id))
+    ));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/admin/bins', async (req, res) => {
+  try {
+    const { name, location, latitude, longitude } = req.body;
+    if (![name, location].every((value) => String(value || '').trim())) {
+      return res.status(400).json({ error: 'Informe nome e localização da lixeira' });
+    }
+    const lat = Number(latitude);
+    const lng = Number(longitude);
+    // Mantém as unidades desta operação dentro da região de Cascavel.
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat < -25.1 || lat > -24.8 || lng < -53.7 || lng > -53.2) {
+      return res.status(400).json({ error: 'Escolha um ponto válido na região de Cascavel' });
+    }
+    const db = await readDB();
+    const now = new Date().toISOString();
+    const bin = { id: uuidv4(), name: String(name).trim(), location: String(location).trim(), latitude: lat, longitude: lng, capacity_pct: 0, status: 'online', last_collected_at: now, created_at: now, updated_at: now };
+    db.bins.push(bin);
+    await writeDB(db);
+    res.status(201).json(bin);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/admin/bins/update', async (req, res) => {
+  try {
+    const { binId, status, capacity } = req.body;
+    if (status && !['online', 'maintenance', 'offline'].includes(status)) return res.status(400).json({ error: 'Status inválido' });
+    const normalizedCapacity = capacity === undefined ? undefined : Math.min(100, Math.max(0, Number(capacity) || 0));
+    const bin = await updateBinById(binId, { status, capacity: normalizedCapacity });
+    if (!bin) return res.status(404).json({ error: 'Lixeira não encontrada' });
+    res.json(bin);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/admin/bins/collect', async (req, res) => {
+  try {
+    const { binId } = req.body;
+    const bin = await updateBinById(binId, { collect: true });
+    if (!bin) return res.status(404).json({ error: 'Lixeira não encontrada' });
+    res.json({ success: true, bin });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/admin/global-stats', async (_req, res) => {
+  try {
+    const db = await readDB();
+
+    const totalUsers = db.users.length;
+    const approved = db.deposits.filter((d) => d.status === 'approved');
+    const totalDeposits = approved.length;
+    const todayDeposits = approved.filter((d) => isSameDay(d.created_at)).length;
+
+    res.json({ totalUsers, totalDeposits, todayDeposits });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/admin/user-rankings', async (_req, res) => {
+  try {
+    const db = await readDB();
+    const result = db.users
+      .map((user) => ({ userName: user.name, points: Number(user.points) || 0 }))
+      .sort((a, b) => b.points - a.points || a.userName.localeCompare(b.userName, 'pt-BR'))
+      .map((user, index) => ({ ...user, rank: index + 1 }));
 
     res.json(result);
   } catch (error) {
@@ -334,22 +591,25 @@ app.get('/api/admin/class-rankings', (req, res) => {
   }
 });
 
-app.get('/api/admin/pending-deposits', (req, res) => {
+app.get('/api/admin/pending-deposits', async (req, res) => {
   try {
-    const db = readDB();
+    const db = await readDB();
 
     const rows = db.deposits
-      .filter((d) => d.status === 'pending')
+      .filter((d) => d.status === 'pending' && !d.collected_at)
       .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
       .map((d) => {
         const user = db.users.find((u) => u.id === d.user_id);
         return {
           id: d.id,
           user_id: d.user_id,
+          binId: d.bin_id || null,
+          binName: db.bins.find((bin) => bin.id === d.bin_id)?.name || 'Depósito manual',
           userName: user?.name ?? '—',
-          class_name: user?.class_name ?? '—',
           wasteType: d.item_type,
+          quantity: d.quantity,
           weight: d.weight_delta,
+          description: d.description || '',
           date: d.created_at,
           status: d.status,
         };
@@ -361,10 +621,10 @@ app.get('/api/admin/pending-deposits', (req, res) => {
   }
 });
 
-app.post('/api/admin/approve-deposit', (req, res) => {
+app.post('/api/admin/approve-deposit', async (req, res) => {
   try {
     const { depositId, points } = req.body;
-    const db = readDB();
+    const db = await readDB();
 
     const deposit = db.deposits.find((d) => d.id === depositId);
     if (!deposit) return res.status(404).json({ error: 'Depósito não encontrado' });
@@ -376,17 +636,41 @@ app.post('/api/admin/approve-deposit', (req, res) => {
     const user = db.users.find((u) => u.id === deposit.user_id);
     if (user) user.points = (user.points || 0) + points;
 
-    writeDB(db);
+    if (user?.referred_by_user_id && user.referral_status === 'pending') {
+      const approvedDeposits = db.deposits.filter((item) => item.user_id === user.id && item.status === 'approved').length;
+      if (approvedDeposits === 1) {
+        const referrer = db.users.find((item) => item.id === user.referred_by_user_id && item.ambassador_status === 'approved');
+        if (referrer) {
+          referrer.points = (referrer.points || 0) + REFERRAL_REWARD_POINTS;
+          user.referral_status = 'qualified';
+          user.referral_reward_points = REFERRAL_REWARD_POINTS;
+          user.referral_qualified_at = new Date().toISOString();
+        }
+      }
+    }
+
+    await writeDB(db);
     res.json({ success: true, message: 'Depósito aprovado com sucesso' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-app.post('/api/admin/reject-deposit', (req, res) => {
+app.get('/api/admin/referrals', async (_req, res) => {
+  try {
+    const db = await readDB();
+    const rows = db.users.filter((user) => user.referred_by_user_id).map((user) => {
+      const ambassador = db.users.find((candidate) => candidate.id === user.referred_by_user_id);
+      return { id: user.id, name: user.name, email: user.email, ambassadorName: ambassador?.name || '—', ambassadorCode: ambassador?.referral_code || '—', status: user.referral_status, rewardPoints: user.referral_reward_points, registeredAt: user.created_at, qualifiedAt: user.referral_qualified_at || null };
+    }).sort((a, b) => new Date(b.registeredAt) - new Date(a.registeredAt));
+    res.json(rows);
+  } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+app.post('/api/admin/reject-deposit', async (req, res) => {
   try {
     const { depositId } = req.body;
-    const db = readDB();
+    const db = await readDB();
 
     const deposit = db.deposits.find((d) => d.id === depositId);
     if (!deposit) return res.status(404).json({ error: 'Depósito não encontrado' });
@@ -394,38 +678,77 @@ app.post('/api/admin/reject-deposit', (req, res) => {
     deposit.status = 'rejected';
     deposit.updated_at = new Date().toISOString();
 
-    writeDB(db);
+    await writeDB(db);
     res.json({ success: true, message: 'Depósito rejeitado' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-app.get('/api/admin/students', (req, res) => {
+app.get('/api/admin/users', async (_req, res) => {
   try {
-    const db = readDB();
-    const students = [...db.users]
+    const db = await readDB();
+    const users = [...db.users]
       .sort((a, b) => b.points - a.points)
       .map((u) => ({
         id: u.id,
         name: u.name,
-        matricula: u.matricula,
         email: u.email,
-        class_name: u.class_name,
+        phone: u.phone || '',
         points: u.points,
         created_at: u.created_at,
       }));
 
-    res.json(students);
+    res.json(users);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-app.post('/api/admin/add-points', (req, res) => {
+app.post('/api/admin/delete-college', async (req, res) => {
+  try {
+    const { userId } = req.body;
+    const db = await readDB();
+    const userIndex = db.users.findIndex((user) => user.id === userId);
+
+    if (userIndex === -1) return res.status(404).json({ error: 'Usuário não encontrado' });
+
+    const [removedCollege] = db.users.splice(userIndex, 1);
+    const depositsBefore = db.deposits.length;
+    db.deposits = db.deposits.filter((deposit) => deposit.user_id !== userId);
+    const removedDeposits = depositsBefore - db.deposits.length;
+
+    await writeDB(db);
+    res.json({ success: true, userName: removedCollege.name, removedDeposits });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/admin/reset-college-impact', async (req, res) => {
+  try {
+    const { userId } = req.body;
+    const db = await readDB();
+    const account = db.users.find((user) => user.id === userId);
+
+    if (!account) return res.status(404).json({ error: 'Usuário não encontrado' });
+
+    account.points = 0;
+    const depositsBefore = db.deposits.length;
+    db.deposits = db.deposits.filter((deposit) => deposit.user_id !== userId);
+    const removedDeposits = depositsBefore - db.deposits.length;
+
+    await writeDB(db);
+    res.json({ success: true, userName: account.name, removedDeposits, points: account.points });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/admin/add-points', async (req, res) => {
   try {
     const { userId, points, reason } = req.body;
-    const db = readDB();
+    const db = await readDB();
 
     const user = db.users.find((u) => u.id === userId);
     if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
@@ -446,7 +769,7 @@ app.post('/api/admin/add-points', (req, res) => {
       timestamp_client: now,
     });
 
-    writeDB(db);
+    await writeDB(db);
     res.json({ success: true, message: 'Pontos adicionados com sucesso' });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -535,8 +858,19 @@ app.post('/api/assistant/chat', async (req, res) => {
   return res.json({ role: 'assistant', content: localAssistantFallback(lastUserMessage), source: 'local-fallback' });
 });
 
-app.listen(PORT, () => {
-  console.log(`✅ Servidor rodando em http://localhost:${PORT}`);
-  console.log(`💾 Dados salvos em server/database/db.json (sem banco de dados externo)`);
-  console.log(`📅 Senha admin de hoje: ${generateAdminPassword()}`);
-});
+async function startServer() {
+  try {
+    await initDatabase();
+    app.listen(PORT, () => {
+      console.log(`✅ Servidor rodando em http://localhost:${PORT}`);
+      console.log('🐘 Dados persistidos em PostgreSQL');
+      console.log(`📅 Senha admin de hoje: ${generateAdminPassword()}`);
+    });
+  } catch (error) {
+    console.error('❌ Não foi possível iniciar o PostgreSQL:', error.message);
+    console.error('Configure DATABASE_URL em server/.env e execute a migração dos dados.');
+    process.exitCode = 1;
+  }
+}
+
+startServer();
